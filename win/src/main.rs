@@ -48,6 +48,9 @@ const STATS: &str = "stats";
 const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required";
 const TRAY: &str = "tray";
 const DEV: bool = cfg!(debug_assertions);
+/// feifei's private build: it takes no updates from the official releases, so it never checks,
+/// and its menu says which build is running.
+const PRIVATE: bool = true;
 /// tauri.conf.json `identifier`, which names the app data folder in %APPDATA%.
 const IDENTIFIER: &str = "com.ellobok.keycat";
 
@@ -892,6 +895,9 @@ fn update_item(app: &AppHandle) -> tauri::Result<Item> {
     if DEV {
         return note(app, &format!("开发模式 v{version}"));
     }
+    if PRIVATE {
+        return note(app, &format!("feifei 私人版 v{version}（不自动更新）"));
+    }
     match host(app).update.clone() {
         UpdateState::Ready(new) => action(app, "update:install", &format!("重启并更新到 v{new}")),
         UpdateState::Downloading(_, percent) => note(app, &format!("正在下载更新 {percent}%")),
@@ -1483,6 +1489,9 @@ fn install_update(app: &AppHandle) {
 }
 
 fn start_update_checks(app: &AppHandle) {
+    if PRIVATE {
+        return;
+    }
     let app = app.clone();
     thread::spawn(move || {
         const EVERY: Duration = Duration::from_secs(6 * 60 * 60);

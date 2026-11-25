@@ -1,12 +1,12 @@
 name: Windows
 
-# Builds the Tauri shell in win/ on a real Windows runner. Tag pushes also publish the installer
-# plus latest.json, which is what the app's updater reads, and latest.yml, which moves 1.0.x
-# installs (Electron, electron-updater) over to this build.
+# feifei's private build: builds the Tauri shell in win/ on a real Windows runner and, on main,
+# publishes the installer as KeyCat-feifei-Setup.exe on the feifei-windows release. Each push
+# replaces that release, so its download link never changes. The build takes no updates
+# (PRIVATE in win/src/main.rs), so nothing is signed.
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -39,69 +39,19 @@ jobs:
         with:
           workspaces: win
 
-      - name: Check that the tag matches package.json
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          version="$(node -p "require('./package.json').version")"
-          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
-            echo "tag $GITHUB_REF_NAME does not match win/package.json version $version" >&2
-            exit 1
-          fi
-
       - name: Install dependencies
         run: npm ci
 
-      # The updater key only exists as a repository secret; without it (pull requests from
-      # forks) the installer is built unsigned, which is fine for checking that it builds.
       - name: Build installer
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            npm run dist
-          else
-            if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-              echo "TAURI_SIGNING_PRIVATE_KEY is required to publish a release" >&2
-              exit 1
-            fi
-            npm run dist -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
-          fi
+        run: npm run dist
 
-      - name: Collect release files
+      # Named apart from the official KeyCat-Windows-Setup.exe, so the two cannot be mixed up.
+      - name: Collect the installer
         run: |
           version="$(node -p "require('./package.json').version")"
           mkdir -p out
-          cp target/release/bundle/nsis/KeyCat_"$version"_x64-setup.exe out/KeyCat-Windows-Setup.exe
+          cp target/release/bundle/nsis/KeyCat_"$version"_x64-setup.exe out/KeyCat-feifei-Setup.exe
           ls -l out
-          [ -f target/release/bundle/nsis/KeyCat_"$version"_x64-setup.exe.sig ] || exit 0
-          url="https://github.com/ElloboDK/KeyCat/releases/download/v$version/KeyCat-Windows-Setup.exe"
-          date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          VERSION="$version" URL="$url" DATE="$date" \
-          SIG="$(cat target/release/bundle/nsis/KeyCat_"$version"_x64-setup.exe.sig)" \
-          node -e '
-            const fs = require("fs");
-            const { VERSION, URL, DATE, SIG } = process.env;
-            fs.writeFileSync("out/latest.json", JSON.stringify({
-              version: VERSION,
-              pub_date: DATE,
-              platforms: { "windows-x86_64": { signature: SIG, url: URL } },
-            }, null, 2));
-            const exe = fs.readFileSync("out/KeyCat-Windows-Setup.exe");
-            const sha512 = require("crypto").createHash("sha512").update(exe).digest("base64");
-            fs.writeFileSync("out/latest.yml", [
-              `version: ${VERSION}`,
-              "files:",
-              "  - url: KeyCat-Windows-Setup.exe",
-              `    sha512: ${sha512}`,
-              `    size: ${exe.length}`,
-              "path: KeyCat-Windows-Setup.exe",
-              `sha512: ${sha512}`,
-              `releaseDate: '\''${DATE}'\''`,
-              "",
-            ].join("\n"));
-          '
-          cat out/latest.json out/latest.yml
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -111,7 +61,7 @@ jobs:
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -121,12 +71,13 @@ jobs:
           name: keycat-windows
           path: out
 
-      - name: Publish release
+      - name: Publish the feifei-windows release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
           ls -l out
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
-          gh release upload "$GITHUB_REF_NAME" out/KeyCat-Windows-Setup.exe out/latest.json out/latest.yml --clobber
+          gh release delete feifei-windows --cleanup-tag --yes || true
+          gh release create feifei-windows out/KeyCat-feifei-Setup.exe --target "$GITHUB_SHA" --latest \
+            --title "feifei 版 Windows 安装包" \
+            --notes "feifei 私人版，由 ${GITHUB_SHA::7} 打包。下载 KeyCat-feifei-Setup.exe 安装；装好后菜单最下面会显示「feifei 私人版」，「外观 → 毛色」里有 feifei。"

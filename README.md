@@ -1,5 +1,7 @@
 # KeyCat
 
+> **这是 feifei 的私人版本，不是官方 KeyCat。** Windows 安装包在 [Releases](https://github.com/kylerrrliu/MyKeyCat/releases/latest)：下载 `KeyCat-feifei-Setup.exe` 安装，装好后菜单最下面显示「feifei 私人版」，「外观 → 毛色」里有 feifei。mac 版在自己的 Mac 上用 `sh mac/build.sh` 打包。下面的安装说明和下载链接都是官方版本的，不适用于这里。
+
 一只趴在键盘上的桌面猫：你打字它伸爪按键，动鼠标它扭头看，摸头会呼噜，没人理会睡着，被烦到会用尾巴捶桌。支持 macOS 13+ 和 Windows 10+，除了从 GitHub 检查和下载更新，不联网。
 
 ![KeyCat](docs/screenshots/keycat-tour.gif)
