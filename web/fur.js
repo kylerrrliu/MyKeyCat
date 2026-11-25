@@ -1,6 +1,6 @@
 // Fur: flat sticker colour plus the markings that make a coat read as a real cat — a pale muzzle
-// and bib, pink inner ears, tabby stripes, calico patches, Siamese-style points — and
-// a soft top-left shade for volume.
+// and bib, pink inner ears, tabby stripes, calico patches, Siamese-style points, pale legs and
+// eye rims, a dark tail tip — and a soft top-left shade for volume.
 // Markings are placed in each part's rest shape, so they stay put when the spine bends.
 'use strict';
 (() => {
@@ -14,6 +14,8 @@
     uPatchB: { value: C('#151515') },
     uPoint: { value: C('#151515') },     // colourpoint mask, ears, legs and tail
     uInner: { value: C('#151515') },     // inner ear
+    uTip: { value: C('#151515') },       // tail tip
+    uSaddle: { value: C('#151515') },    // a shaded coat's darker back
     uStripes: { value: 0 },
     uMuzzle: { value: 0 },
     uBib: { value: 0 },
@@ -22,6 +24,12 @@
     uPoints: { value: 0 },
     uInnerAmt: { value: 0 },
     uShade: { value: 0 },
+    uTipAmt: { value: 0 },
+    uBrow: { value: 0 },
+    uSpecs: { value: 0 },
+    uLegs: { value: 0 },
+    uTailLight: { value: 0 },
+    uSaddleAmt: { value: 0 },
   };
 
   const vertex = `
@@ -46,8 +54,9 @@
     }`;
 
   const fragment = `
-    uniform vec3 uFur, uLight, uDark, uPatchA, uPatchB, uPoint, uInner;
-    uniform float uStripes, uMuzzle, uBib, uCalico, uTuxedo, uPoints, uInnerAmt, uShade;
+    uniform vec3 uFur, uLight, uDark, uPatchA, uPatchB, uPoint, uInner, uTip, uSaddle;
+    uniform float uStripes, uMuzzle, uBib, uCalico, uTuxedo, uPoints, uInnerAmt, uShade, uTipAmt, uBrow, uSpecs, uLegs, uTailLight,
+      uSaddleAmt;
     varying vec3 vRest;
     varying vec3 vNormal;
     varying float vAlong;
@@ -72,7 +81,7 @@
       vec3 col = uFur;
       vec3 p = vRest;
       // \`point\`: how far into the colourpoint this spot is.
-      float light = 0.0, dark = 0.0, inner = 0.0, point = 0.0;
+      float light = 0.0, dark = 0.0, inner = 0.0, point = 0.0, tip = 0.0, saddle = 0.0;
       #ifdef HEAD
         // Head geometry is a unit sphere scaled (0.56, 0.47, 0.47) by the mesh.
         if (p.z > 0.0) {
@@ -92,6 +101,16 @@
           mk = max(mk, stroke(vec2(abs(q.x), q.y), vec2(0.74, 0.02), vec2(0.98, 0.1), 0.045, 0.35));
           mk = max(mk, stroke(vec2(abs(q.x), q.y), vec2(0.76, -0.17), vec2(0.99, -0.15), 0.04, 0.35));
           dark = max(dark, mk * uStripes);
+          // Brow: a shaded golden's only tabby marks, one line from between the eyes up over the
+          // forehead, and only faintly the two short side strokes and a line back from the outer
+          // corner of each eye. Nothing on the body.
+          float brow = stroke(q, vec2(0.0, 0.28), vec2(0.0, 0.86), 0.042, 0.6);
+          brow = max(brow, 0.45 * stroke(vec2(abs(q.x), q.y), vec2(0.17, 0.46), vec2(0.25, 0.78), 0.04, 0.45));
+          brow = max(brow, 0.45 * stroke(vec2(abs(q.x), q.y), vec2(0.74, 0.02), vec2(0.98, 0.1), 0.04, 0.35));
+          dark = max(dark, brow * uBrow);
+          // Spectacles: pale fur under each eye and in at its inner corner. The eye is drawn over
+          // it, so only a crescent shows, none above the eye.
+          light = max(light, blob(vec2(abs(q.x), q.y), vec2(0.4, 0.0), vec2(0.33, 0.35)) * uSpecs);
         }
         // Calico: an orange patch over the left brow and ear, a black one over the right.
         float pa = blob3(p, vec3(-0.6, 0.7, 0.35), 0.62);
@@ -116,6 +135,8 @@
         dark = max(dark, band * uStripes);
         float pa = blob3(p, vec3(-0.5, 0.95, -0.3), 0.55);
         float pb = blob3(p, vec3(0.55, 0.55, -0.15), 0.5) * (1.0 - bib);
+        // Saddle: darkest along the spine, fading out down the flanks before they turn to the front.
+        saddle = smoothstep(1.2, 2.6, a);
       #endif
       #ifdef EAR
         // Ear lathe: radius shrinks from 0.28 at the base to 0 at the tip (y 0.37).
@@ -137,6 +158,11 @@
         dark = max(dark, smoothstep(0.88, 0.89, vAlong) * uStripes);
         float pa = smoothstep(0.62, 0.63, vAlong), pb = smoothstep(0.32, 0.33, vAlong) * (1.0 - pa);
         point = smoothstep(0.3, 0.31, vAlong);
+        // A shaded golden's tail carries the saddle a little way, fades to cream along its second
+        // half and ends in a dark tip.
+        saddle = 1.0 - smoothstep(0.05, 0.4, vAlong);
+        light = max(light, smoothstep(0.3, 0.62, vAlong) * uTailLight);
+        tip = smoothstep(0.9, 0.91, vAlong);
       #endif
       #ifdef ARM
         // No stripes on the legs: at this size they read as rings round a tube.
@@ -144,12 +170,17 @@
         float pa = 0.0, pb = 0.0;
         // Points: dark boots from halfway down the leg, crisp at the top.
         point = smoothstep(0.55, 0.56, vAlong);
+        // Pale legs: the bib colour from the shoulder down. The root is hidden in the body, so a
+        // gold shoulder would only show as a smudge on the chest.
+        light = max(light, smoothstep(0.0, 0.06, vAlong) * uLegs);
       #endif
       col = mix(col, uPatchA, pa * uCalico);
       col = mix(col, uPatchB, pb * uCalico);
       col = mix(col, uPoint, point * uPoints);
+      col = mix(col, uSaddle, saddle * uSaddleAmt);
       col = mix(col, uDark, dark);
       col = mix(col, uLight, light);
+      col = mix(col, uTip, tip * uTipAmt);
       col = mix(col, uInner, inner * uInnerAmt);
       // Soft volume: lit from the top left, a touch darker towards the silhouette and underneath.
       vec3 n = normalize(vNormal);
@@ -181,7 +212,9 @@
 
   // Writes a coat: colours plus how strongly each marking shows (0 hides it).
   K.setFur = f => {
-    for (const k of ['fur', 'light', 'dark', 'patchA', 'patchB', 'point', 'inner']) U['u' + k[0].toUpperCase() + k.slice(1)].value.set(f[k] || f.fur);
-    for (const k of ['stripes', 'muzzle', 'bib', 'calico', 'tuxedo', 'points', 'innerAmt', 'shade']) U['u' + k[0].toUpperCase() + k.slice(1)].value = f[k] || 0;
+    for (const k of ['fur', 'light', 'dark', 'patchA', 'patchB', 'point', 'inner', 'tip', 'saddle']) U['u' + k[0].toUpperCase() + k.slice(1)].value.set(f[k] || f.fur);
+    for (const k of ['stripes', 'muzzle', 'bib', 'calico', 'tuxedo', 'points', 'innerAmt', 'shade', 'brow', 'specs', 'legs', 'tailLight']) U['u' + k[0].toUpperCase() + k.slice(1)].value = f[k] || 0;
+    U.uTipAmt.value = f.tip ? 1 : 0;
+    U.uSaddleAmt.value = f.saddle ? 1 : 0;
   };
 })();

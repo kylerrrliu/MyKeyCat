@@ -8,7 +8,7 @@ final class MenuAction: NSObject {
 
 let coatOptions = [("黑猫", "black"), ("奶牛猫", "tuxedo"), ("橘猫", "orange"), ("蓝灰猫", "grey"),
                    ("白猫", "white"), ("三花猫", "calico"), ("暹罗猫", "siamese"), ("布偶猫", "ragdoll"),
-                   ("德文卷毛猫", "devon"), ("美短银虎斑", "silver"), ("狸花猫", "lihua")]
+                   ("德文卷毛猫", "devon"), ("美短银虎斑", "silver"), ("狸花猫", "lihua"), ("feifei", "feifei")]
 
 extension AppDelegate {
     /// Resizes every cat; the second keeps its place next to the main one.

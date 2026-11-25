@@ -26,6 +26,8 @@
   // Per eye, so odd eyes can differ. Closed eyes are a line: iris-gold on black fur, dark on
   // light coats where gold would not show.
   const eyeMats = [overlay('#dcb64a'), overlay('#dcb64a')];
+  // Some coats ring the iris in a thin dark line, as a golden's eyes are (`eyeRim`).
+  const eyeRimMat = overlay('#2a1d14');
   const lidMat = overlay('#dcb64a');
   const pupilMat = overlay('#141414');
   const whiskerMat = overlay('#dedcd4');
@@ -612,6 +614,12 @@
     const iris = new THREE.Mesh(disc, eyeMat);
     iris.scale.set(0.155, 0.14, 1);
     iris.renderOrder = 10;
+    // On the iris, so it blinks, widens and hides with it; drawn first, so only its edge shows.
+    const ring = new THREE.Mesh(disc, eyeRimMat);
+    ring.scale.set(1 + 0.02 / 0.155, 1 + 0.02 / 0.14, 1);
+    ring.renderOrder = 9.9;
+    ring.visible = false;
+    iris.add(ring);
     const pupil = new THREE.Mesh(disc, pupilMat);
     pupil.scale.set(0.05, 0.11, 1);
     pupil.position.z = 0.002;
@@ -633,7 +641,7 @@
     blush.renderOrder = 10;
     g.add(blush);
     head.add(g);
-    const eye = { s, group: g, iris, pupil, shine, arc: arc.mesh, lid: arc, lidK: 0 };
+    const eye = { s, group: g, iris, ring, pupil, shine, arc: arc.mesh, lid: arc, lidK: 0 };
     setLid(eye, 1);
     return eye;
   });
@@ -665,8 +673,23 @@
   // the reference, since they would not show.
   const faceZ = (x, y) => R.z * Math.sqrt(Math.max(0, 1 - (x / R.x) ** 2 - (y / R.y) ** 2));
   const face = new THREE.Group();
+  const NY = -0.15;
+  const mouth = new K.TaperTube(24, 4, mouthMat, 12);
+  // The contented "ω", or (`mouthShape: 'plain'`) the closed "人" of a cat just staring at you:
+  // half its width `w`, and its height across the face.
+  const MOUTHS = {
+    smile: { w: 0.07, y: x => NY - 0.035 - 0.022 * Math.sin(Math.abs(x) / 0.07 * Math.PI) },
+    plain: { w: 0.05, y: x => NY - 0.033 - 0.026 * (Math.abs(x) / 0.05) ** 0.8 },
+  };
+  function setMouth(kind) {
+    const m = MOUTHS[kind] || MOUTHS.smile;
+    mouth.update((t, out) => {
+      const x = mix(-m.w, m.w, t), y = m.y(x);
+      return out.set(x, y, faceZ(x, y) + 0.006);
+    }, () => 0.0055);
+  }
   {
-    const NY = -0.15, nose = new THREE.Shape();
+    const nose = new THREE.Shape();
     nose.moveTo(-0.045, 0.012);
     nose.quadraticCurveTo(0, 0.026, 0.045, 0.012);
     nose.quadraticCurveTo(0.05, 0.004, 0.012, -0.024);
@@ -677,11 +700,6 @@
     noseMesh.quaternion.setFromUnitVectors(V(0, 0, 1), V(0, NY / (R.y * R.y), faceZ(0, NY) / (R.z * R.z)).normalize());
     noseMesh.scale.setScalar(1.2);
     noseMesh.renderOrder = 12;
-    const mouth = new K.TaperTube(24, 4, mouthMat, 12);
-    mouth.update((t, out) => {
-      const x = mix(-0.07, 0.07, t), y = NY - 0.035 - 0.022 * Math.sin(Math.abs(x) / 0.07 * Math.PI);
-      return out.set(x, y, faceZ(x, y) + 0.006);
-    }, () => 0.0055);
     face.add(noseMesh, mouth.mesh);
   }
   head.add(face);
@@ -1115,6 +1133,11 @@
   // and `points` give the dark mask, ears, legs and tail of colourpoint breeds, and `ears` scales the
   // ears. `cheek` is a faint pink flush on the pale coats (dark fur would only muddy it). `shade` is
   // the soft volume shading of the 3D style; black stays a flat silhouette like the reference.
+  // A shaded golden's markings: `brow` (a line up the forehead, in the `tabby` colour), `specs`
+  // (pale fur under the eyes), `legs` and `tailLight` (pale legs, a tail fading to pale), `saddle`
+  // (the darker back's colour), `tip` (the tail tip's colour) and `eyeRim` (a dark ring round the iris).
+  // The face: `shineSize` shrinks the catchlights and `mouthShape: 'plain'` closes the mouth into
+  // a "人"; with no `cheek` flush that reads as a blank, dopey stare.
   const COATS = {
     black: { fur: '#151515', ink: '#151515', rim: '#f6f3e8', arm: '#8a8984', paw: '#1d1d1c', toe: '#4a4a46', whisker: '#dedcd4', eye: 'gold' },
     tuxedo: { fur: '#1a1a1a', ink: '#151515', lid: '#e4c25a', rim: '#f6f3e8', arm: '#8a8984', paw: '#f8f7f2', toe: '#bcbab2', whisker: '#e8e6de', eye: 'green',
@@ -1147,8 +1170,16 @@
     lihua: { fur: '#c29c6c', ink: '#80623f', lid: '#3d2f22', rim: '#fff8ec', arm: '#86684a', paw: '#f2e9d8', toe: '#d2bd9c', whisker: '#fff8ec', eye: 'green',
       light: '#f0e5d0', muzzle: 1, bib: 0.7, nose: '#c27a66', mouth: '#5e4836', inner: '#e2ad98', innerAmt: 1, shade: 0.55,
       tabby: '#6b5038', striped: true, cheek: 0.25 },
+    // Feifei, a golden shaded British shorthair: golden head, a darker back; cream muzzle, chest,
+    // legs and second half of the tail; a black tail tip; one line up the forehead; pale fur under
+    // hazel eyes ringed in dark brown, with big round pupils; dark pads. No smile and small
+    // catchlights give his blank stare.
+    feifei: { fur: '#eba765', ink: '#b5763c', lid: '#7a4a22', rim: '#fff8ea', arm: '#c8873f', paw: '#fff4e4', toe: '#e8c6a0', pad: '#3a2f28',
+      whisker: '#fffaf0', eye: 'hazel', eyeRim: '#3b2a1c', light: '#fbe6cc', muzzle: 1, bib: 1, legs: 1, specs: 1, tailLight: 1, brow: 1,
+      tabby: '#d48a45', saddle: '#c88446', tip: '#2b231c', nose: '#e9a091', mouth: '#a5643a', inner: '#f4b3a0', innerAmt: 1, shade: 0.55,
+      pupil: 2.3, shineSize: 0.55, mouthShape: 'plain' },
   };
-  const EYES = { gold: '#dcb64a', green: '#93c255', blue: '#6eb2e6', amber: '#e59a32', copper: '#d9792f' };
+  const EYES = { gold: '#dcb64a', green: '#93c255', blue: '#6eb2e6', amber: '#e59a32', copper: '#d9792f', hazel: '#b8b04c' };
   // Catchlight dots per style: [x (outer side +), y, radius].
   const SHINES = {
     none: [],
@@ -1158,8 +1189,9 @@
   const COLLARS = { red: '#d9483b', blue: '#4f8fd8', pink: '#ee8fb4', green: '#5fae6a' };
   // eye: 'auto' follows the coat; 'odd' is one blue and one gold eye.
   // style: '2d' is flat colour like a sticker; '3d' adds soft volume shading.
-  // What the current coat brings beyond the materials: the resting cheek flush.
-  const coat = { cheek: 0 };
+  // What the current coat brings beyond the materials: the resting cheek flush, and how wide the
+  // pupils rest (`pupil`: 1 is the usual slit, 2.3 as round as a curious cat's).
+  const coat = { cheek: 0, pupil: 1 };
   // `cable`, `board` and `opacity` are for the desk and the whole picture: the mouse cord, the
   // keyboard's colours, and how see-through everything is (so the text under it shows).
   const look = { style: '2d', coat: 'black', pattern: 'auto', eye: 'auto', shine: 'classic', blush: false, whiskers: true, collar: 'none',
@@ -1174,6 +1206,7 @@
     const striped = c.tabby && (look.pattern === 'tabby' || (look.pattern === 'auto' && c.striped));
     const solid = look.style === '3d';
     coat.cheek = c.cheek || 0;
+    coat.pupil = c.pupil || 1;
     K.setFur({ ...c, dark: c.tabby || c.fur, stripes: striped ? 1 : 0, shade: solid ? c.shade : 0 });
     // Big ears lean further out, set low and wide on the head as a Devon's are.
     for (const e of ears) placeEar(e, c.ears || 1);
@@ -1197,13 +1230,16 @@
     eyeMats[0].color.set(EYES[eye === 'odd' ? 'blue' : eye] || EYES.gold);
     eyeMats[1].color.set(EYES[eye === 'odd' ? 'gold' : eye] || EYES.gold);
     lidMat.color.set(c.lid || eyeMats[0].color);
+    eyeRimMat.color.set(c.eyeRim || '#000000');
     for (const e of eyes) {
-      const dots = SHINES[look.shine] || SHINES.classic;
+      e.ring.visible = !!c.eyeRim;
+      const dots = SHINES[look.shine] || SHINES.classic, k = c.shineSize || 1;
       e.shine.children.forEach((d, i) => {
         d.visible = i < dots.length;
-        if (d.visible) { d.position.set(e.s * dots[i][0], dots[i][1], 0.004); d.scale.set(dots[i][2], dots[i][2], 1); }
+        if (d.visible) { d.position.set(e.s * dots[i][0], dots[i][1], 0.004); d.scale.set(dots[i][2] * k, dots[i][2] * k, 1); }
       });
     }
+    setMouth(c.mouthShape);
     for (const w of whiskers) w.visible = look.whiskers;
     if (look.collar in COLLARS) collarMat.color.set(COLLARS[look.collar]);
     setOutfit(outfit.kind);

@@ -920,6 +920,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         ("德文卷毛猫", json!("devon")),
         ("美短银虎斑", json!("silver")),
         ("狸花猫", json!("lihua")),
+        ("feifei", json!("feifei")),
     ];
     // Things to do first, then the settings in three groups (the cat, the desk, its habits), then
     // window and app items. Same order and wording as the mac menu.

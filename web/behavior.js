@@ -1289,8 +1289,10 @@
     // in the 调节 window); cross ones narrow to slits under heavy lids. The pupil never grows past
     // the iris, so it stays a black disc inside a coloured ring.
     // Holding the keyboard it looks up at you round-eyed, as on the sticker.
-    const dilate = Math.min(2.6, mix(1 + 0.25 * S.excite, TUNING.pupilSize / 100, Math.max(curious, 0.7 * hunt, caught || innocent ? 0.8 : 0,
-      S.nag && S.lying ? 0.85 : 0)) * (1 - 0.5 * cross));
+    // Some coats rest round-eyed already (`cat.coat.pupil`); curiosity never shrinks those.
+    const rest = cat.coat.pupil;
+    const dilate = Math.min(2.6, mix(rest * (1 + 0.25 * S.excite), Math.max(rest, TUNING.pupilSize / 100), Math.max(curious, 0.7 * hunt,
+      caught || innocent ? 0.8 : 0, S.nag && S.lying ? 0.85 : 0)) * (1 - 0.5 * cross));
     // Squeezed shut with glee (^ ^) having a go at the keys; just the one eye for the wink as it
     // holds a paw up at you.
     const glee = !!S.play;
